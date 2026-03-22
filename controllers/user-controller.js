@@ -181,11 +181,11 @@ const login = async (req, res) => {
     error: false,
     message: "Login Successful",
     data: {
-    role: user.role,
-    roleName: Object.keys(USER_ROLES).find(
-      key => USER_ROLES[key] === user.role
-    )
-  },
+      role: isUser.role,
+      roleName: Object.keys(USER_ROLES).find(
+        key => USER_ROLES[key] === isUser.role
+      )
+    },
     token: accessToken,
   });
 };
