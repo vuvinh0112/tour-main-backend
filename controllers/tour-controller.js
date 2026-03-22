@@ -77,11 +77,11 @@ const createTour = async (req, res) => {
                 }
                 console.log(result.secure_url);
                 resolve(result.secure_url);
-              }
+              },
             );
             stream.end(file.buffer);
           });
-        })
+        }),
       );
 
       const imageDocs = uploadedUrls.map((url) => ({
@@ -131,7 +131,7 @@ const getTours = async (req, res) => {
           avgRating: tour.avgRating,
           status: tour.status,
         };
-      })
+      }),
     );
 
     return res.json({
@@ -202,7 +202,7 @@ const getToursByRole = async (req, res) => {
         let myQuantity = 0;
         if (currentUser.role === USER_ROLES.USER) {
           const myBooking = tour.userIds.find(
-            (item) => item.userId && item.userId.toString() === userId
+            (item) => item.userId && item.userId.toString() === userId,
           );
           myQuantity = myBooking ? myBooking.quantity : 0;
         }
@@ -219,7 +219,7 @@ const getToursByRole = async (req, res) => {
           myQuantity:
             currentUser.role === USER_ROLES.USER ? myQuantity : undefined,
         };
-      })
+      }),
     );
 
     res.status(200).json({ error: false, data: tourList });
@@ -302,7 +302,7 @@ const updateTour = async (req, res) => {
           const publicId = img.url.split("/").slice(-1)[0].split(".")[0];
 
           return cloudinary.uploader.destroy(`tour_images/${publicId}`);
-        })
+        }),
       );
 
       // 3. Xoá ảnh cũ khỏi DB
@@ -317,11 +317,11 @@ const updateTour = async (req, res) => {
               (err, result) => {
                 if (err) return reject(err);
                 resolve(result.secure_url);
-              }
+              },
             );
             stream.end(file.buffer);
           });
-        })
+        }),
       );
 
       const imageDocs = uploadedUrls.map((url) => ({
@@ -364,7 +364,7 @@ const deleteTour = async (req, res) => {
       const publicId = img.url.split("/").slice(-1)[0].split(".")[0];
 
       return cloudinary.uploader.destroy(`tour_images/${publicId}`);
-    })
+    }),
   );
 
   // 3. Xoá ảnh cũ khỏi DB
@@ -387,23 +387,23 @@ const updateTourguide = async (req, res) => {
   const userId = req.userId;
 
   try {
-    // Check user tồn tại và quyền
+    // Check user
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.role !== USER_ROLES.ADMIN) {
+    // ✅ Cho phép ADMIN (0) và SELLER (2)
+    if (user.role !== USER_ROLES.ADMIN && user.role !== USER_ROLES.SELLER) {
       return res.status(403).json({ message: "Not permission" });
     }
 
-    // Check tour tồn tại
+    // Check tour
     const tour = await Tour.findById(tourId);
     if (!tour) {
       return res.status(404).json({ message: "Tour not found" });
     }
 
-    // Check tourGuideId
     const guideId = req.body.tourGuideId;
     if (!guideId) {
       return res
@@ -411,45 +411,52 @@ const updateTourguide = async (req, res) => {
         .json({ message: "Missing tourGuideId in request body!" });
     }
 
-    // Check hướng dẫn viên có tồn tại và đúng role
+    // Check guide
     const guide = await User.findOne({
       _id: guideId,
       role: USER_ROLES.TOUR_GUIDE,
     });
+
     if (!guide) {
       return res.status(404).json({ message: "Tour guide not found" });
     }
 
-    // Check hướng dẫn viên đã nhận tour khác trong khoảng ngày này chưa
+    // Check conflict
     const conflictingTour = await Tour.findOne({
       tourGuideId: guideId,
-      _id: { $ne: tourId }, // tránh trùng với chính tour đang update
+      _id: { $ne: tourId },
       startDate: { $lte: tour.endDate },
       endDate: { $gte: tour.startDate },
-      status: { $ne: TOUR_STATUS.CANCELLED }, // Chỉ tính những tour chưa hủy
+      status: { $ne: TOUR_STATUS.CANCELLED },
     });
 
     if (conflictingTour) {
       return res.status(400).json({
-        message: `Tour guide is already assigned to another tour (ID: ${conflictingTour._id}) within this date range.`,
+        message: `Tour guide is already assigned to another tour (ID: ${conflictingTour._id})`,
       });
     }
 
-    // Cập nhật tour
-    await Tour.findByIdAndUpdate(tourId, {
-      tourGuideId: guideId,
-      status: TOUR_STATUS.ASSIGNED,
-    });
+    // ✅ Update + return luôn dữ liệu mới
+    const updatedTour = await Tour.findByIdAndUpdate(
+      tourId,
+      {
+        tourGuideId: guideId,
+        status: TOUR_STATUS.ASSIGNED,
+      },
+      { new: true },
+    ).populate("tourGuideId", "fullName phone email");
 
     return res.status(200).json({
       error: false,
       message: "Tour assigned to guide successfully",
+      data: updatedTour, // 🔥 QUAN TRỌNG
     });
   } catch (error) {
     console.log("updateTourguide error: ", error);
-    return res
-      .status(500)
-      .json({ error: true, message: "Internal server error" });
+    return res.status(500).json({
+      error: true,
+      message: "Internal server error",
+    });
   }
 };
 
@@ -593,7 +600,7 @@ const createReview = async (req, res) => {
     }
 
     const hasBooking = tour.userIds.some(
-      (item) => item.userId.toString() === userId
+      (item) => item.userId.toString() === userId,
     );
     if (!hasBooking) {
       return res.status(403).json({ message: "Bạn chưa tham gia tour này" });
@@ -667,7 +674,7 @@ const provincesLatLngPath = path.join(
   __dirname,
   "..",
   "data",
-  "vietnam-provinces-latlng.json"
+  "vietnam-provinces-latlng.json",
 );
 let provincesLatLng = {};
 try {
@@ -699,7 +706,7 @@ const getCoordinates = async (city) => {
     if (!res.length) return null;
 
     const vnResults = res.filter(
-      (r) => r.countryCode === "vn" || r.country_code === "vn"
+      (r) => r.countryCode === "vn" || r.country_code === "vn",
     );
     if (vnResults.length > 0) {
       return { lat: vnResults[0].latitude, lon: vnResults[0].longitude };
@@ -735,7 +742,7 @@ const suggestTours = async (req, res) => {
     }
 
     const tourCoords = await Promise.all(
-      tours.map((t) => getCoordinates(t.city))
+      tours.map((t) => getCoordinates(t.city)),
     );
 
     // Tính các giá trị thô
@@ -746,7 +753,7 @@ const suggestTours = async (req, res) => {
 
     const distances = city
       ? tours.map((tour, i) =>
-          haversine(userCoord, tourCoords[i] || { lat: 0, lon: 0 })
+          haversine(userCoord, tourCoords[i] || { lat: 0, lon: 0 }),
         )
       : [];
     const maxDistance = city ? Math.max(...distances) : 1;
@@ -758,14 +765,14 @@ const suggestTours = async (req, res) => {
 
     const startDiffs = startDate
       ? tours.map((tour) =>
-          Math.abs(new Date(tour.startDate) - new Date(startDate))
+          Math.abs(new Date(tour.startDate) - new Date(startDate)),
         )
       : [];
     const maxStartDiff = startDate ? Math.max(...startDiffs) : 1;
 
     const endDiffs = endDate
       ? tours.map((tour) =>
-          Math.abs(new Date(tour.endDate) - new Date(endDate))
+          Math.abs(new Date(tour.endDate) - new Date(endDate)),
         )
       : [];
     const maxEndDiff = endDate ? Math.max(...endDiffs) : 1;
@@ -843,14 +850,14 @@ const suggestTours = async (req, res) => {
       const dBest = Math.sqrt(
         row.reduce(
           (sum, val, j) => sum + wValues[j] * Math.pow(val - best[j], 2),
-          0
-        )
+          0,
+        ),
       );
       const dWorst = Math.sqrt(
         row.reduce(
           (sum, val, j) => sum + wValues[j] * Math.pow(val - worst[j], 2),
-          0
-        )
+          0,
+        ),
       );
       return dWorst / (dBest + dWorst);
     });
@@ -899,7 +906,7 @@ const suggestTours = async (req, res) => {
           score: tour.score,
           criteria: tour.criteria,
         };
-      })
+      }),
     );
 
     return res.status(200).json({ tours: topToursWithImages });
@@ -943,7 +950,7 @@ const cancelTour = async (req, res) => {
       // Cập nhật trạng thái các booking
       await BookingRq.updateMany(
         { tourId: tourId, status: BOOKING_RQ_STATUS.PAID },
-        { $set: { status: BOOKING_RQ_STATUS.REFUND } }
+        { $set: { status: BOOKING_RQ_STATUS.REFUND } },
       );
 
       await BookingRq.updateMany(
@@ -953,7 +960,7 @@ const cancelTour = async (req, res) => {
             $in: [BOOKING_RQ_STATUS.PENDING, BOOKING_RQ_STATUS.ASSIGNED],
           },
         },
-        { $set: { status: BOOKING_RQ_STATUS.CANCELLED } }
+        { $set: { status: BOOKING_RQ_STATUS.CANCELLED } },
       );
 
       return res
@@ -994,7 +1001,7 @@ const cancelTour = async (req, res) => {
 
       // Xóa user khỏi tour.userIds
       tour.userIds = tour.userIds.filter(
-        (item) => item.userId.toString() !== userId
+        (item) => item.userId.toString() !== userId,
       );
 
       // Lưu tour
