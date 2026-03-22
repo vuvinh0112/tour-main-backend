@@ -121,7 +121,13 @@ const getBookingRqsById = async (req, res) => {
     const user = await User.findById(userId);
 
     const bookingRqs = await BookingRq.findById(bookingRqId)
-      .populate("tourId")
+      .populate({
+        path: "tourId",
+        populate: {
+          path: "tourGuideId",
+          select: "fullName phone email",
+        },
+      })
       .populate("userId", "fullName phone email")
       .populate("sellerId", "fullName phone email");
     if (!bookingRqs) {
